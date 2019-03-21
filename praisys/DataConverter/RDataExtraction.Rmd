@@ -1,0 +1,1034 @@
+---
+title: "Extracting Data For Matlab In R"
+output: pdf_document
+---
+
+These libraries will be used to take in useful data and plot it
+```{r}
+library(ggplot2)
+library(rgdal)
+```
+
+These are shapefiles which are used for basic plotting
+```{r}
+#reading in county road data
+lehighCountyShapefile <- readOGR("./inputData/tl_2017_42077_roads")
+northamptonCountyShapefile <- readOGR("./inputData/tl_2017_42095_roads")
+lehighCounty <- fortify(lehighCountyShapefile)
+northamptonCounty <- fortify(northamptonCountyShapefile)
+rm(lehighCountyShapefile)
+rm(northamptonCountyShapefile)
+```
+
+This is a plot of the basic roads in the Lehigh Valley
+```{r}
+#plotting roads
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color = "1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color = "2")) + scale_color_manual(values=c("black","grey"), breaks=c("1","2"), name="Legend", labels=c("Lehigh County Roads", "Northampton County Roads")) + xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Roads")
+ggsave("./plots/shapefileRoads.jpg")
+```
+
+This reads in the lehigh valley highway intersection data
+```{r}
+#reading in Lehigh Valley highway intersection data
+highwayPoints <- read.csv("./inputData/FinishedExtractedIntersections.csv")
+```
+
+This reads in the other significant infrastructure
+```{r}
+communicationTowers <- read.csv("./inputData/CommunicationTower.csv")
+powerPlant <- read.csv("./inputData/PowerPlantsLatLong.csv")
+powerSubstations <- read.csv("./inputData/SubstationsLatLong.csv")
+bridges <- read.csv("./inputData/HighwayBridges.csv")
+powerConnectivity <- read.csv("./inputData/PowerSystemsConnectivity.csv")
+Antennas <- read.csv("./inputData/Antennas.csv")
+CentralOffices <- read.csv("./inputData/CentralOffices.csv")
+CentralOffices <- unique(CentralOffices)
+#some central offices are repeated
+duplicatedOffices <- CentralOffices[duplicated(CentralOffices[,c("Latitude","Longitude")]),c("Latitude","Longitude")]
+nonDuplicated <- CentralOffices[which(!(CentralOffices$Latitude %in% duplicatedOffices$Latitude) & !(CentralOffices$Longitude %in% duplicatedOffices$Longitude)),]
+for(i in 1:length(duplicatedOffices$Latitude)){
+  offices <- CentralOffices[which(CentralOffices$Latitude==duplicatedOffices$Latitude[i]&CentralOffices$Longitude==duplicatedOffices$Longitude[i]),]
+  if(length(grep(pattern = "VERIZON", x = as.character(offices$Company)))>0){
+    nonDuplicated <- rbind(nonDuplicated, offices[grep(pattern = "VERIZON", offices$Company)[1],])
+  }else{
+    nonDuplicated <- rbind(nonDuplicated, offices[1,])
+  }
+}
+CentralOffices <- nonDuplicated
+rm(nonDuplicated)
+rm(offices)
+rm(duplicatedOffices)
+Antennas <- unique(Antennas)
+
+Antennas <- Antennas[which(Antennas$Longitude<=-75&Antennas$Longitude>=-75.7&Antennas$Latitude>=40.4&Antennas$Latitude<=41),]
+CentralOffices <- CentralOffices[which(CentralOffices$Longitude<=-75&CentralOffices$Longitude>=-75.7&CentralOffices$Latitude>=40.4&CentralOffices$Latitude<=41),]
+notPowerSub <- as.character(powerSubstations$Substation[which(powerSubstations$Longitude>=-75|powerSubstations$Longitude<=(-75.7)|powerSubstations$Latitude<40.4|powerSubstations$Latitude>41)])
+notPowerPlant <- as.character(powerPlant$Power.Plant[which(powerPlant$Longitude>=-75|powerPlant$Longitude<=(-75.7)|powerPlant$Latitude<40.4|powerPlant$Latitude>41)])
+powerSubstations <- powerSubstations[which(powerSubstations$Longitude<=-75&powerSubstations$Longitude>=-75.7&powerSubstations$Latitude>=40.4&powerSubstations$Latitude<=41),]
+powerPlant <- powerPlant[which(powerPlant$Longitude<=-75&powerPlant$Longitude>=-75.7&powerPlant$Latitude>=40.4&powerPlant$Latitude<=41),]
+powerConnectivity <- powerConnectivity[(!(as.character(powerConnectivity$Node.1) %in% as.character(notPowerSub))&!(as.character(powerConnectivity$Node.1) %in% notPowerPlant)&!(as.character(powerConnectivity$Node.2) %in% as.character(notPowerSub))&!(as.character(powerConnectivity$Node.2) %in% notPowerPlant)),]
+
+```
+
+This plots the intersections extracted from the sql server
+```{r}
+#plotting roads
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color = "1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color = "1")) + geom_point(data = highwayPoints, aes(x = long1, y = lat1, color = "2"), size = 1) + geom_point(data = highwayPoints, aes(x = long2, y = lat2, color = "2"), size = 1) + xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Roads With Intersection Points") + scale_color_manual(values=c("black", "red"), breaks=c("1", "2"), name="Legend", labels=c("Road", "Intersection Point"))
+```
+
+This reads in the general highway points extracted from the sql server and plots them on top of all of the Lehigh County roads to demonstate the model versus the actual roads.
+```{r}
+allPoints <- read.csv("./inputData/FinishedAllPoints.csv")
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color = "1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color = "1")) + geom_point(data = allPoints, aes(x = long, y = lat, color = "2"), size = 1) + xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Roads With All Highway Points") + scale_color_manual(values=c("black", "red"), breaks=c("1", "2"), name="Legend", labels=c("Road", "Highway Point"))
+```
+
+This reorganizes the intersection data to make it just one set of points so that instead of it being a point with corresponding road names that intersect there, it is just a set of all points with one road name.
+```{r}
+road <- NULL
+long <- NULL
+lat <- NULL
+for(i in 1:length(highwayPoints$Road1)){
+  road <- c(road, as.character(highwayPoints$Road1[i]))
+  long <- c(long, highwayPoints$long1[i])
+  lat <- c(lat, highwayPoints$lat1[i])
+  road <- c(road, as.character(highwayPoints$Road1[i]))
+  long <- c(long, highwayPoints$long2[i])
+  lat <- c(lat, highwayPoints$lat2[i])
+}
+
+for(i in 1:length(highwayPoints$Road2)){
+  road <- c(road, as.character(highwayPoints$Road2[i]))
+  long <- c(long, highwayPoints$long1[i])
+  lat <- c(lat, highwayPoints$lat1[i])
+  road <- c(road, as.character(highwayPoints$Road2[i]))
+  long <- c(long, highwayPoints$long2[i])
+  lat <- c(lat, highwayPoints$lat2[i])
+}
+points  <- data.frame(road=road, long=long, lat=lat)
+points <- points[which(!is.na(points$long)),]
+points <- points[which(points$road!="NULL"),]
+points <- points[which(!is.na(points$road)),]
+points$road <- factor(points$road)
+points <- unique(points)
+points$group <- as.numeric(points$road)
+rm(road)
+rm(lat)
+rm(long)
+rm(i)
+head(points)
+```
+
+These are four functions to create segments and merge by the segments.
+```{r}
+mergeSegments <- function(allPoints){
+  newAllPoints <- allPoints
+  segmentNum <- NULL
+  j <- 0
+  for(i in 1:length(newAllPoints$Order)){
+   if(newAllPoints$Order[i]==1){
+     j <- j + 1
+     segmentNum <- c(segmentNum, j)
+    }else{
+     segmentNum <- c(segmentNum, j)
+   }
+  }
+
+  newAllPoints$segmentNum <- segmentNum
+
+  for(road in unique(newAllPoints$Road)){
+   tempAllPoints <- newAllPoints[which(newAllPoints$Road==road),]
+    maxOrderIndex <- NULL
+    for(seg in unique(tempAllPoints$segmentNum)){
+     maxOrderIndex <- c(maxOrderIndex, which(tempAllPoints$Order==max(tempAllPoints$Order[which(tempAllPoints$segmentNum==seg)])&tempAllPoints$segmentNum==seg))
+    }
+   start <- tempAllPoints[which(tempAllPoints$Order==1),]
+    end <- tempAllPoints[maxOrderIndex,]
+  
+    #compare start and end then turn into one segment
+  
+    for(i in 1:length(start$Road)){
+     for(j in 1:length(end$Road)){
+       if(start$lat[i]==end$lat[j]&&start$long[i]==end$long[j]){
+        
+          newAllPoints$Order[which(newAllPoints$segmentNum==start$segmentNum[i])] <- (newAllPoints$Order[which(newAllPoints$segmentNum==start$segmentNum[i])] + end$Order[j])
+          newAllPoints$segmentNum[which(newAllPoints$segmentNum==start$segmentNum[i])] <- end$segmentNum[j]
+          end$Order[which(end$segmentNum==start$segmentNum[i])] <- end$Order[which(end$segmentNum==start$segmentNum[i])] + end$Order[j]
+          end$segmentNum[which(end$segmentNum==start$segmentNum[i])] <- end$segmentNum[j]
+          start$segmentNum[i] <- end$segmentNum[j]
+        
+        }
+      }
+    }
+  
+  }
+  newAllPoints <- newAllPoints[order(newAllPoints$segmentNum, newAllPoints$Order),]
+  return(newAllPoints)
+}
+flipSmallestSegment <- function(allPoints) {
+  for(road in unique(newAllPoints$Road)){
+    segments <- unique(newAllPoints$segmentNum[which(newAllPoints$Road==road)])
+    if(length(segments)>1){
+      prev <- NULL
+      segToSwap <- segments[1]
+      for(seg in segments){
+        if(is.null(prev)||length(newAllPoints$segmentNum[which(newAllPoints$segmentNum==seg)])<prev){
+          segToSwap <- seg
+          prev <- length(newAllPoints$segmentNum[which(newAllPoints$segmentNum==seg)])
+        }
+      }
+      newAllPoints$Order[which(newAllPoints$segmentNum==segToSwap)] <- max(newAllPoints$Order[which(newAllPoints$segmentNum==segToSwap)]) + 1 - newAllPoints$Order[which(newAllPoints$segmentNum==segToSwap)]
+      #flip the segment
+    }
+  }
+  newAllPoints <- newAllPoints[order(newAllPoints$segmentNum, newAllPoints$Order),]
+  return(newAllPoints)
+}
+linkByClosest <- function(newAllPoints){
+  for(road in unique(newAllPoints$Road)){
+    roadPoints <- newAllPoints[which(newAllPoints$Road==road),]
+    if(length(unique(roadPoints$segmentNum))==1) 
+      next
+    startAndEnd <- NULL
+    for(seg in roadPoints$segmentNum){
+      startAndEnd <- roadPoints[which(roadPoints$segmentNum==seg & roadPoints$Order==1),]
+      maxOrder <- max(roadPoints$Order[which(roadPoints$segmentNum==seg)])
+      startAndEnd <- rbind(startAndEnd, roadPoints[which(roadPoints$segmentNum==seg&roadPoints$Order==maxOrder),])
+    }
+    for(i in 1:length(startAndEnd$Order)){
+      dist <- NULL
+      prevdist <- NULL
+      closestIndex <- NULL
+      for(j in i:length(startAndEnd$Order)){
+        
+        dist <- (as.numeric(startAndEnd$lat[i])-as.numeric(startAndEnd$lat[j]))^2+(as.numeric(startAndEnd$long[i])-as.numeric(startAndEnd$long[j]))^2
+        if(is.null(prevdist)||dist<prevdist){
+          prevdist <- dist
+          closestIndex <- j
+        }
+        
+      }
+      
+      if(startAndEnd$Order[closestIndex]==1&startAndEnd$Order[i]==1){
+        newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])] <- 1 - newAllPoints$Order
+        shiftFactor <- -1*min(newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])])+1
+        newAllPoints$segmentNum[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])] <-   startAndEnd$segmentNum[i]
+        newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[i])] <- newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[i])] + shiftFactor
+        startAndEnd$Order[closestIndex] <- shiftFactor
+        startAndEnd$segmentNum[closestIndex] <- startAndEnd$segmentNum[i]
+      }else if(startAndEnd$Order[closestIndex]>1&startAndEnd$Order[i]>1){
+        
+        newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])] <- max(newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])]) - newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])] + startAndEnd$Order[i] + 1 
+        newAllPoints$segmentNum[which(newAllPoints$segmentNum==startAndEnd$segmentNum[closestIndex])] <-   startAndEnd$segmentNum[i]
+        startAndEnd$segmentNum[closestIndex] <- startAndEnd$segmentNum[i]
+        
+      }else{
+        toAddOn <- i
+        addingTo <- closestIndex
+        if(startAndEnd$Order[closestIndex]==1){
+          toAddOn <- closestIndex
+          addingTo <- i
+        }
+        
+        newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[toAddOn])] <- newAllPoints$Order[which(newAllPoints$segmentNum==startAndEnd$segmentNum[toAddOn])] + startAndEnd$Order[addingTo]
+        newAllPoints$segmentNum[which(newAllPoints$segmentNum==startAndEnd$segmentNum[toAddOn])] <-   startAndEnd$segmentNum[addingTo]
+        startAndEnd$segmentNum[toAddOn] <- startAndEnd$segmentNum[addingTo]
+        
+      }
+      
+    }
+  }
+  newAllPoints <- newAllPoints[order(newAllPoints$Road, newAllPoints$segmentNum, newAllPoints$Order),]
+  returnPoints <- NULL
+  returnPoints <- data.frame(Road=as.character(newAllPoints$Road), Order=as.numeric(newAllPoints$Order), long=as.numeric(newAllPoints$long), lat=as.numeric(newAllPoints$lat), segmentNum= as.numeric(newAllPoints$segmentNum))
+  return(returnPoints)
+}
+renameNonLinked <- function(newAllPoints){
+  newAllPoints$Road <- as.character(newAllPoints$Road)
+  newAllPoints$segmentNum <- as.numeric(newAllPoints$segmentNum)
+  newAllPoints$search <- newAllPoints$Road
+  for(segment in unique(newAllPoints$segmentNum)){
+    newAllPoints$Road[which(newAllPoints$segmentNum==segment)] <- paste(newAllPoints$Road[which(newAllPoints$segmentNum==segment)][1], " (",segment,")", sep = "")
+  }
+  return(newAllPoints)
+}
+```
+
+
+```{r}
+newAllPoints <- allPoints
+newAllPoints <- mergeSegments(newAllPoints)
+newAllPoints <- flipSmallestSegment(newAllPoints)
+#only used twice to reduce the computational complexity of these calculations
+newAllPoints <- mergeSegments(newAllPoints)
+newAllPoints <- renameNonLinked(newAllPoints)
+#renames the segments so that the names are now based off of the segments they are a part of
+```
+
+the onHighway function checks if the bridge is on a highway based of off a cut of distance
+```{r}
+onHighway <- function(bridge, allHighwayPoints, cutoffDist){
+  allHighwayPoints <- allHighwayPoints[which(as.numeric(allHighwayPoints$lat)<=(bridge$lat[1]+cutoffDist)&as.numeric(allHighwayPoints$lat)>=(bridge$lat[1]-cutoffDist)),]
+  
+  allHighwayPoints <- allHighwayPoints[which(as.numeric(allHighwayPoints$long)<=(bridge$long[1]+cutoffDist)&as.numeric(allHighwayPoints$long)>=(bridge$long[1]-cutoffDist)),]
+  #return null if no nearby highway points
+  if(length(allHighwayPoints$lat)==0){
+    return(NULL)
+  }
+  #now have square around which bridge is focused.
+  closestTo <- NULL
+  dist <- NULL
+  prevdist <- NULL
+  for(i in 1:length(allHighwayPoints$lat)){
+    dist <- (as.numeric(allHighwayPoints$lat[i]) - as.numeric(bridge$lat[1]))^2 + (as.numeric(allHighwayPoints$long[i]) - as.numeric(bridge$long[1]))^2
+    
+    if(is.null(prevdist) || dist<=prevdist){
+      prevdist <- dist
+      closestTo <- allHighwayPoints[i,]
+    }
+  }
+  if(prevdist^(1/2) <= cutoffDist){
+    returnBridge <- data.frame(actualLat=bridge$lat,actualLong=bridge$long,closestToLat=closestTo$lat,closestToLong=closestTo$long,segName=closestTo$Road,realname=bridge$Name,name=closestTo$search ,order=closestTo$Order)
+    
+    return(returnBridge)
+  }else{
+    return(NULL)
+  }
+}
+```
+
+Applying the onHighway function with a good found cut off of 0.004 
+```{r}
+bridges$lat <- as.numeric(bridges$Latitude)
+bridges$long <- as.numeric(bridges$Longitude)
+extractedBridges <- list(NULL)
+for(i in 1:length(bridges$ID)){
+  found <- onHighway(bridges[i,], newAllPoints, 0.004)
+  if(!is.null(found)){
+    extractedBridges <- rbind(extractedBridges, found)
+  }
+}
+rm(i)
+rm(found)
+```
+
+This first function creates a data frame approxIntersections which links the actual intersections to point nearby on the highway and the second adds bridges into the mix of the approxxIntersections
+```{r}
+approximateIntersections <- function(newAllPoints,points){
+  roadNames <- unique(as.character(newAllPoints$search))
+  i <- 0;
+  closestToLat <- NULL
+  closestToLong <- NULL
+  actualLat <- NULL
+  actualLong <- NULL
+  actualName <- NULL
+  order <- NULL
+  segName <- NULL
+  
+  for(name in roadNames){
+    tempInter <- points[which(points$road==name),]
+    tempAllPoints <- newAllPoints[which(newAllPoints$search==name),]
+    for(i in 1:length(tempInter$road)){
+      actualLat <- c(actualLat, tempInter$lat[i])
+      actualLong <- c(actualLong, tempInter$long[i])
+      actualName <- c(actualName, name)
+      prevdist <- NULL
+      dist <- NULL
+      minLat <- NULL
+      minLong <- NULL
+      tempOrder <- NULL
+      for(j in 1:length(tempAllPoints$Road)){
+        dist <- (as.numeric(tempInter$lat[i])-as.numeric(tempAllPoints$lat[j]))^2 + (as.numeric(tempInter$long[i])-as.numeric(tempAllPoints$long[j]))^2
+        
+        if(is.null(prevdist) || dist<prevdist){
+          prevdist <- dist
+          tempOrder <- tempAllPoints$Order[j]
+          minLat <- tempAllPoints$lat[j]
+          minLong <- tempAllPoints$long[j]
+        }
+      }
+      order <- c(order, tempOrder)
+      closestToLat <- c(closestToLat, minLat)
+      closestToLong <- c(closestToLong, minLong)
+      segName <- c(segName, tempAllPoints$Road[which(tempAllPoints$lat==minLat&tempAllPoints$long==minLong)][1])
+    }
+  }
+  approxIntersections <- data.frame(name = actualName,actualLat, actualLong, closestToLat, closestToLong, order, segName)
+  return(approxIntersections)
+}
+approximateIntersectionsWithBridges <- function(newAllPoints,points, extractedBridges){
+  roadNames <- unique(as.character(newAllPoints$search))
+  i <- 0;
+  closestToLat <- NULL
+  closestToLong <- NULL
+  actualLat <- NULL
+  actualLong <- NULL
+  actualName <- NULL
+  order <- NULL
+  segName <- NULL
+  
+  for(name in roadNames){
+    tempInter <- points[which(points$road==name),]
+    tempAllPoints <- newAllPoints[which(newAllPoints$search==name),]
+    for(i in 1:length(tempInter$road)){
+      actualLat <- c(actualLat, tempInter$lat[i])
+      actualLong <- c(actualLong, tempInter$long[i])
+      actualName <- c(actualName, name)
+      prevdist <- NULL
+      dist <- NULL
+      minLat <- NULL
+      minLong <- NULL
+      tempOrder <- NULL
+      for(j in 1:length(tempAllPoints$Road)){
+        dist <- (as.numeric(tempInter$lat[i])-as.numeric(tempAllPoints$lat[j]))^2 + (as.numeric(tempInter$long[i])-as.numeric(tempAllPoints$long[j]))^2
+        
+        if(is.null(prevdist) || dist<prevdist){
+          prevdist <- dist
+          tempOrder <- tempAllPoints$Order[j]
+          minLat <- tempAllPoints$lat[j]
+          minLong <- tempAllPoints$long[j]
+        }
+      }
+      order <- c(order, tempOrder)
+      closestToLat <- c(closestToLat, minLat)
+      closestToLong <- c(closestToLong, minLong)
+      segName <- c(segName, tempAllPoints$Road[which(tempAllPoints$lat==minLat&tempAllPoints$long==minLong)][1])
+    }
+  }
+  approxIntersections <- data.frame(name = actualName,actualLat, actualLong, closestToLat, closestToLong, order, segName)
+  approxIntersections$realname <- NA
+  approxIntersections <- rbind(approxIntersections, extractedBridges)
+  return(approxIntersections)
+}
+```
+
+Applying approximateIntersections
+```{r}
+approxIntersections <- approximateIntersectionsWithBridges(newAllPoints, points, extractedBridges)
+```
+
+This function orders the points in the given segement by comparing it to the approximate intersection
+```{r}
+orderPoints <- function(approxIntersections,newAllPoints){
+  fakeInt <- NULL
+  IntName <- NULL
+  long <- NULL
+  lat <- NULL
+  order <- NULL
+  segment <- NULL
+  newAllPoints$lat <- as.numeric(newAllPoints$lat)
+  newAllPoints$long <- as.numeric(newAllPoints$long)
+  newAllPoints$segmentNum <- as.numeric(newAllPoints$segmentNum)
+  newAllPoints$Order <- as.numeric(newAllPoints$Order)
+  approxIntersections$actualLat <- as.numeric(approxIntersections$actualLat)
+  approxIntersections$actualLong <- as.numeric(approxIntersections$actualLong)
+  approxIntersections$closestToLat <- as.numeric(approxIntersections$closestToLat)
+  approxIntersections$closestToLong <- as.numeric(approxIntersections$closestToLong)
+  
+  
+  for(seg in unique(newAllPoints$segmentNum)){
+    segmentOfPoints <- newAllPoints[which(newAllPoints$segmentNum==seg),]
+    startPoint <- segmentOfPoints[which(segmentOfPoints$Order==1),]
+    endPoint <- segmentOfPoints[which(segmentOfPoints$Order==max(segmentOfPoints$Order)),]
+    setOfInt <- approxIntersections[which(approxIntersections$segName==segmentOfPoints$Road[1]),]
+    possibleEndPoints <- setOfInt[which(setOfInt$closestToLat == endPoint$lat[1] & setOfInt$closestToLong == endPoint$long[1]),]
+    possibleStartPoints <- setOfInt[which(setOfInt$closestToLat == startPoint$lat[1] & setOfInt$closestToLong == startPoint$long[1]),]
+    if(length(possibleStartPoints$segName)==0){
+      #create a fake intersection
+      fakeInt <- c(fakeInt, TRUE)
+      IntName <- c(IntName,as.character(startPoint$Road[1]))
+      long <- c(long, startPoint$long[1])
+      lat <- c(lat, startPoint$lat[1])
+      order <- c(order, 1)
+      segment <- c(segment, seg)
+    }
+    if(length(possibleStartPoints$segName)>0){
+      for(i in 1:length(possibleStartPoints$segName)){
+        fakeInt <- c(fakeInt, FALSE)
+        IntName <- c(IntName,as.character(possibleStartPoints$segName[i]))
+        long <- c(long, possibleStartPoints$actualLong[i])
+        lat <- c(lat, possibleStartPoints$actualLat[i])
+        order <- c(order, i)
+        segment <- c(segment, seg)
+      }
+    }
+    if(length(possibleEndPoints$segName)==0){
+      #create a fake intersection
+      fakeInt <- c(fakeInt, TRUE)
+      IntName <- c(IntName,as.character(endPoint$Road[1]))
+      long <- c(long, endPoint$long[1])
+      lat <- c(lat, endPoint$lat[1])
+      order <- c(order, 0) #to replace with calculated number for endpoint
+      segment <- c(segment, seg)
+    }
+    tempFakeInt <- NULL
+    tempIntName <- NULL
+    tempLong <- NULL
+    tempLat <- NULL
+    tempOrder <- NULL
+    tempSegment <- NULL
+    if(length(possibleEndPoints$segName)>0){
+      for(i in 1:length(possibleEndPoints$segName)){
+        tempFakeInt <- c(tempFakeInt, FALSE)
+        tempIntName <- c(tempIntName,as.character(possibleEndPoints$segName[i]))
+        tempLong <- c(tempLong, possibleEndPoints$actualLong[i])
+        tempLat <- c(tempLat, possibleEndPoints$actualLat[i])
+        tempOrder <- c(tempOrder, i)
+        tempSegment <- c(tempSegment, seg)
+      }
+    }
+    
+    
+    
+    #remove the possible startPoints and endPoints from the segmentOfPoints and the setOfInt
+    #see if any of the points match a given lat long in the remaining segment
+    possiblePoints <- rbind(possibleStartPoints, possibleEndPoints)
+  
+    if(length(possiblePoints$segName)!=0){
+      for(i in 1:length(possiblePoints$name)){
+        segmentOfPoints <- segmentOfPoints[(which(segmentOfPoints$lat!=possiblePoints$actualLat[i]&segmentOfPoints$long!=possiblePoints$actualLong[i])),]
+        setOfInt <- setOfInt[(which(setOfInt$actualLat!=possiblePoints$actualLat[i]&setOfInt$actualLong!=possiblePoints$actualLong[i])),]
+      }
+    }
+    uniquePoints <- unique(setOfInt[,c("closestToLat","closestToLong", "order")])
+    uniquePoints <- uniquePoints[order(uniquePoints$order),]
+    
+    setOfInt <- setOfInt[order(setOfInt$order),]
+    
+    if(length(setOfInt$name)!=0){
+    
+      for(i in 1:length(uniquePoints$closestToLat)){
+        uniqueClosest <- uniquePoints[i,]
+        tempSet <- setOfInt[which(setOfInt$closestToLat==uniqueClosest$closestToLat[1]&setOfInt$closestToLong==uniqueClosest$closestToLong[1]),]
+        if(length(tempSet$segName)>1){
+          closerIndex <- NULL
+          distIndex <- NULL
+          dist <- NULL
+          for(j in 1:length(tempSet$segName)){
+            oldDist <- dist
+            dist <- as.numeric(tempSet$actualLat[j])-as.numeric(tempSet$closestToLat[j]) + as.numeric(tempSet$actualLong[j])-as.numeric(tempSet$closestToLong[j])
+         
+            if(is.null(oldDist)){
+              closerIndex <- c(closerIndex, 1)
+              distIndex <- c(distIndex, dist)
+            }else{
+              greaterThan <- closerIndex[which(distIndex>=dist)]
+              greaterDist <- distIndex[which(distIndex>=dist)]
+              lessThan <- closerIndex[which(distIndex<dist)]
+              lessDist <- distIndex[which(distIndex<dist)]
+              closerIndex <- c(lessThan, j, greaterThan)
+              distIndex <- c(lessDist, dist, greaterDist)
+            }
+          }
+          fakeInt <- c(fakeInt, rep_len(FALSE, length(closerIndex)))
+          IntName <- c(IntName, rep_len(as.character(tempSet$segName[1]), length(closerIndex)))
+          long <- c(long, tempSet$actualLong[closerIndex])
+          lat <- c(lat, tempSet$actualLat[closerIndex])
+          if(order[length(order)]==0){
+            order <- c(order, 2:(1+length(closerIndex)))
+          }else{
+            order <- c(order, (order[length(order)]+1):(order[length(order)]+length(closerIndex)))
+          }
+          segment <- c(segment, rep_len(seg, length(closerIndex)))
+          #order by which is closer
+        }else{
+          fakeInt <- c(fakeInt, FALSE)
+          IntName <- c(IntName, as.character(tempSet$segName[1]))
+          long <- c(long, tempSet$actualLong[1])
+          lat <- c(lat, tempSet$actualLat[1])
+          if(order[length(order)]==0){
+            order <- c(order, 2)
+          }else{
+            order <- c(order, order[length(order)]+1)
+          }
+          segment <- c(segment, seg)
+        }
+      }
+    }
+    if(length(tempFakeInt)>0){
+      fakeInt <- c(fakeInt, tempFakeInt)
+      IntName <- c(IntName, tempIntName)
+      long <- c(long, tempLong)
+      lat <- c(lat, tempLat)
+      order <- c(order, tempOrder+order[length(order)])
+      segment <- c(segment, tempSegment)
+    }
+    
+  }
+  tempPoints <- data.frame(fakeInt,IntName,long,lat,order,segment)
+  for(i in which(tempPoints$order==0)){
+    tempPoints$order[i] <- (max(tempPoints$order[which(tempPoints$segment==tempPoints$segment[i])]) + 1)
+  }
+  tempPoints <- tempPoints[order(tempPoints$segment, tempPoints$order),]
+  order <- tempPoints$order
+  fakeInt <- tempPoints$fakeInt
+  IntName <- tempPoints$IntName
+  long <- tempPoints$long
+  lat <- tempPoints$lat
+  order <- tempPoints$order
+  segment <- tempPoints$segment
+  rm(tempPoints)
+  finishedPoints <- data.frame(fakeInt,IntName,long,lat,order,segment)
+  return(finishedPoints)
+}
+orderPointsWithBridges <- function(approxIntersectionsWBridges,newAllPoints){
+  approxIntersections <- approxIntersectionsWBridges
+  fakeInt <- NULL
+  IntName <- NULL
+  long <- NULL
+  lat <- NULL
+  order <- NULL
+  segment <- NULL
+  bridgeName <- NULL
+  newAllPoints$lat <- as.numeric(newAllPoints$lat)
+  newAllPoints$long <- as.numeric(newAllPoints$long)
+  newAllPoints$segmentNum <- as.numeric(newAllPoints$segmentNum)
+  newAllPoints$Order <- as.numeric(newAllPoints$Order)
+  approxIntersections$actualLat <- as.numeric(approxIntersections$actualLat)
+  approxIntersections$actualLong <- as.numeric(approxIntersections$actualLong)
+  approxIntersections$closestToLat <- as.numeric(approxIntersections$closestToLat)
+  approxIntersections$closestToLong <- as.numeric(approxIntersections$closestToLong)
+  
+  
+  for(seg in unique(newAllPoints$segmentNum)){
+    segmentOfPoints <- newAllPoints[which(newAllPoints$segmentNum==seg),]
+    startPoint <- segmentOfPoints[which(segmentOfPoints$Order==1),]
+    endPoint <- segmentOfPoints[which(segmentOfPoints$Order==max(segmentOfPoints$Order)),]
+    setOfInt <- approxIntersections[which(approxIntersections$segName==segmentOfPoints$Road[1]),]
+    possibleEndPoints <- setOfInt[which(setOfInt$closestToLat == endPoint$lat[1] & setOfInt$closestToLong == endPoint$long[1]),]
+    possibleStartPoints <- setOfInt[which(setOfInt$closestToLat == startPoint$lat[1] & setOfInt$closestToLong == startPoint$long[1]),]
+    if(length(possibleStartPoints$segName)==0){
+      #create a fake intersection
+      fakeInt <- c(fakeInt, TRUE)
+      IntName <- c(IntName,as.character(startPoint$Road[1]))
+      long <- c(long, startPoint$long[1])
+      lat <- c(lat, startPoint$lat[1])
+      order <- c(order, 1)
+      segment <- c(segment, seg)
+      bridgeName <- c(bridgeName, NA)
+    }
+    if(length(possibleStartPoints$segName)>0){
+      for(i in 1:length(possibleStartPoints$segName)){
+        fakeInt <- c(fakeInt, FALSE)
+        IntName <- c(IntName,as.character(possibleStartPoints$segName[i]))
+        long <- c(long, possibleStartPoints$actualLong[i])
+        lat <- c(lat, possibleStartPoints$actualLat[i])
+        order <- c(order, i)
+        segment <- c(segment, seg)
+        if(is.null(possibleStartPoints$realname[i])||is.na(possibleStartPoints$realname[i])){
+          bridgeName <- c(bridgeName, NA)
+        }else{
+          bridgeName <- c(bridgeName, possibleStartPoints$realname[i])
+        }
+      }
+    }
+    
+    if(length(possibleEndPoints$segName)==0){
+      #create a fake intersection
+      fakeInt <- c(fakeInt, TRUE)
+      IntName <- c(IntName,as.character(endPoint$Road[1]))
+      long <- c(long, endPoint$long[1])
+      lat <- c(lat, endPoint$lat[1])
+      order <- c(order, 0) #to replace with calculated number for endpoint
+      segment <- c(segment, seg)
+      bridgeName <- c(bridgeName, NA)
+    }
+    tempFakeInt <- NULL
+    tempIntName <- NULL
+    tempLong <- NULL
+    tempLat <- NULL
+    tempOrder <- NULL
+    tempSegment <- NULL
+    tempBridgeName <- NULL
+    if(length(possibleEndPoints$segName)>0){
+      for(i in 1:length(possibleEndPoints$segName)){
+        tempFakeInt <- c(tempFakeInt, FALSE)
+        tempIntName <- c(tempIntName,as.character(possibleEndPoints$segName[i]))
+        tempLong <- c(tempLong, possibleEndPoints$actualLong[i])
+        tempLat <- c(tempLat, possibleEndPoints$actualLat[i])
+        if(is.null(possibleEndPoints$realname[i])||is.na(possibleEndPoints$realname[i])){
+          tempBridgeName <- c(tempBridgeName, NA)
+        }else{
+          tempBridgeName <- c(tempBridgeName, possibleEndPoints$realname[i])
+          
+        }
+        tempOrder <- c(tempOrder, i)
+        tempSegment <- c(tempSegment, seg)
+      }
+    }
+    
+    #remove the possible startPoints and endPoints from the segmentOfPoints and the setOfInt
+    #see if any of the points match a given lat long in the remaining segment
+    possiblePoints <- rbind(possibleStartPoints, possibleEndPoints)
+  
+    if(length(possiblePoints$segName)!=0){
+      for(i in 1:length(possiblePoints$name)){
+        segmentOfPoints <- segmentOfPoints[(which(segmentOfPoints$lat!=possiblePoints$actualLat[i]&segmentOfPoints$long!=possiblePoints$actualLong[i])),]
+        setOfInt <- setOfInt[(which(setOfInt$actualLat!=possiblePoints$actualLat[i]&setOfInt$actualLong!=possiblePoints$actualLong[i])),]
+      }
+    }
+    uniquePoints <- unique(setOfInt[,c("closestToLat","closestToLong", "order")])
+    uniquePoints <- uniquePoints[order(uniquePoints$order),]
+    
+    setOfInt <- setOfInt[order(setOfInt$order),]
+    if(length(setOfInt$name)!=0){
+      
+      for(i in 1:length(uniquePoints$closestToLat)){
+        uniqueClosest <- uniquePoints[i,]
+        tempSet <- setOfInt[which(setOfInt$closestToLat==uniqueClosest$closestToLat[1]&setOfInt$closestToLong==uniqueClosest$closestToLong[1]),]
+        
+        if(length(tempSet$segName)>1){
+          closerIndex <- NULL
+          distIndex <- NULL
+          dist <- NULL
+          for(j in 1:length(tempSet$segName)){
+            oldDist <- dist
+            dist <- as.numeric(tempSet$actualLat[j])-as.numeric(tempSet$closestToLat[j]) + as.numeric(tempSet$actualLong[j])-as.numeric(tempSet$closestToLong[j])
+            
+            if(is.null(oldDist)){
+              closerIndex <- c(closerIndex, 1)
+              distIndex <- c(distIndex, dist)
+            }else{
+              greaterThan <- closerIndex[which(distIndex>=dist)]
+              greaterDist <- distIndex[which(distIndex>=dist)]
+              lessThan <- closerIndex[which(distIndex<dist)]
+              lessDist <- distIndex[which(distIndex<dist)]
+              closerIndex <- c(lessThan, j, greaterThan)
+              distIndex <- c(lessDist, dist, greaterDist)
+            }
+          }
+          fakeInt <- c(fakeInt, rep_len(FALSE, length(closerIndex)))
+          IntName <- c(IntName, rep_len(as.character(tempSet$segName[1]), length(closerIndex)))
+          long <- c(long, tempSet$actualLong[closerIndex])
+          lat <- c(lat, tempSet$actualLat[closerIndex])
+          temporaryRoadName <- NULL
+          for(index in closerIndex){
+            if(is.null(tempSet$realname[index])||is.na(tempSet$realname[index])){
+              temporaryRoadName <- c(temporaryRoadName, NA)
+            }else{
+              temporaryRoadName <- c(temporaryRoadName, tempSet$realname[index])
+            }
+          }
+          bridgeName <- c(bridgeName, temporaryRoadName)
+          if(order[length(order)]==0){
+            order <- c(order, 2:(1+length(closerIndex)))
+          }else{
+            order <- c(order, (order[length(order)]+1):(order[length(order)]+length(closerIndex)))
+          }
+          segment <- c(segment, rep_len(seg, length(closerIndex)))
+          #order by which is closer
+        }else{
+          fakeInt <- c(fakeInt, FALSE)
+          IntName <- c(IntName, as.character(tempSet$segName[1]))
+          long <- c(long, tempSet$actualLong[1])
+          lat <- c(lat, tempSet$actualLat[1])
+          if(is.null(tempSet$realname[1])||is.na(tempSet$realname[1])){
+            bridgeName <- c(bridgeName, NA)
+          }else{
+            bridgeName <- c(bridgeName, tempSet$realname[1])
+          }
+          if(order[length(order)]==0){
+            order <- c(order, 2)
+          }else{
+            order <- c(order, order[length(order)]+1)
+          }
+          segment <- c(segment, seg)
+        }
+      }
+    }
+    
+    if(length(tempFakeInt)>0){
+      fakeInt <- c(fakeInt, tempFakeInt)
+      IntName <- c(IntName, tempIntName)
+      long <- c(long, tempLong)
+      lat <- c(lat, tempLat)
+      order <- c(order, tempOrder+order[length(order)])
+      segment <- c(segment, tempSegment)
+      bridgeName <- c(bridgeName, tempBridgeName)
+    }
+    
+  }
+  
+  tempPoints <- data.frame(fakeInt,IntName,long,lat,order,segment, bridgeName)
+  for(i in which(tempPoints$order==0)){
+    tempPoints$order[i] <- (max(tempPoints$order[which(tempPoints$segment==tempPoints$segment[i])]) + 1)
+  }
+  tempPoints <- tempPoints[order(tempPoints$segment, tempPoints$order),]
+  order <- tempPoints$order
+  fakeInt <- tempPoints$fakeInt
+  IntName <- tempPoints$IntName
+  long <- tempPoints$long
+  lat <- tempPoints$lat
+  order <- tempPoints$order
+  segment <- tempPoints$segment
+  bridgeName <- tempPoints$bridgeName
+  finishedPoints <- data.frame(fakeInt,IntName,long,lat,order,segment, bridgeName)
+  return(finishedPoints)
+}
+```
+
+Applying the previous function
+```{r}
+finishedPoints <- orderPointsWithBridges(approxIntersections, newAllPoints)
+```
+
+
+This plots and then saves the extracted highway points.
+```{r}
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color="4")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color="1")) + geom_path(data = finishedPoints, aes(x = long, y = lat, color = "3", group = segment), size = 2)  + geom_path(data = newAllPoints, aes(x = long, y = lat, color = "2", group = segmentNum), size = 0.5) + geom_point(data = finishedPoints[which(finishedPoints$fakeInt==FALSE&is.na(finishedPoints$bridgeName)),], aes(x = long, y = lat, color = "5"))+ geom_point(data = finishedPoints[which(finishedPoints$fakeInt==TRUE),], aes(x = long, y = lat, color = "6")) + geom_point(data = finishedPoints[which(!is.na(finishedPoints$bridgeName)),], aes(x = long, y = lat, color = "7")) +xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Roads With Processed Highway Points") + scale_color_manual(values=c("gray","blue", "red","black", "green", "yellow", alpha("khaki4", 0.8)), breaks=c("1","2", "3", "4", "5", "6", "7"), name="Legend", labels=c("Northampton County Roads", "Extracted Highways", "Connected Nodes in Matlab", "Lehigh County Roads", "Road Nodes Extracted From SQL Server", "Added Road Nodes", "Bridge Nodes"))
+ggsave("./plots/initRoads.jpg")
+```
+
+```{r}
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color="1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color="8")) + geom_path(data = finishedPoints, aes(x = long, y = lat, color = "3", group = segment), size = 2) + geom_point(data = powerPlant, aes(x= Longitude, y= Latitude, color = "5")) + geom_point(data = communicationTowers, aes(x = Longitude, y= Latitude, color = "6")) + geom_point(data = powerSubstations, aes(x = Longitude, y= Latitude, color = "7")) +  xlab("Longitude") + ylab("Latitude") + geom_point(data = CentralOffices, aes(x = Longitude, y= Latitude, color = "9")) +  xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Roads With All Possible Nodes") + scale_color_manual(values=c("black", "red", "cyan", "orange", "yellow", "gray", "green"), breaks=c("1", "3", "5", "6", "7","8", "9"), name="Legend", labels=c("Actual Lehigh County Roads",  "Lines Connecting Road Nodes", "Power Plant", "Communication Tower", "Substation", "Actual Northampton County Roads", "Central Office Node"))
+ggsave("./plots/allNodes.jpg")
+```
+
+```{r}
+createPowerConnections <- function(powerConnectivity, powerPlant, powerSubstations){
+  plantsAndStations <- data.frame(long=c(powerPlant$Longitude,powerSubstations$Longitude),lat=c(powerPlant$Latitude,powerSubstations$Latitude), name=c(as.character(powerPlant$Power.Plant), as.character(powerSubstations$Substation)),isPlant=c(rep_len(TRUE, length.out = length(powerPlant$Longitude)),rep_len(FALSE, length.out = length(powerSubstations$Longitude))))
+  name <- NULL
+  segments <- NULL
+  lat <- NULL
+  long <- NULL
+  isPlant <- NULL
+  countSeg <- 1
+  powerConnectivity$Node.1 <- as.character(powerConnectivity$Node.1)
+  powerConnectivity$Node.2 <- as.character(powerConnectivity$Node.2)
+  tested <- FALSE
+  for(i in 1:length(powerConnectivity$Node.1)){
+    name <- c(name, powerConnectivity$Node.1[i], powerConnectivity$Node.2[i])
+    lat <- c(lat, plantsAndStations$lat[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.1[i]))], plantsAndStations$lat[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.2[i]))])
+    long <- c(long, plantsAndStations$long[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.1[i]))], plantsAndStations$long[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.2[i]))])
+    isPlant <- c(isPlant, plantsAndStations$isPlant[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.1[i]))], plantsAndStations$isPlant[which(as.character(plantsAndStations$name) == as.character(powerConnectivity$Node.2[i]))])
+    segments <- c(segments, countSeg, countSeg)
+    countSeg <- countSeg + 1
+  }
+  return(data.frame(name,lat,long,isPlant,segment= segments)[order(segments),])
+}
+powerSystem <- createPowerConnections(powerConnectivity, powerPlant,powerSubstations)
+```
+
+```{r}
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color="1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color="2")) + geom_path(data = powerSystem, aes(x = long, y = lat, group = segment, color = "3"), size = 0.5) + geom_point(data = powerSystem[which(powerSystem$isPlant),], aes(x = long, y = lat, color = "4"))+ geom_point(data = powerSystem[which(powerSystem$isPlant==FALSE),], aes(x = long, y = lat, color = "5"))+  xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley Intial Power Connections") + scale_color_manual(values=c("black","gray", "yellow", "red", "blue"), breaks=c("1","2", "3", "4", "5"), name="Legend", labels=c("Actual Lehigh County Roads", "Actual Northampton County Roads", "Connected Power System Nodes", "Power Plant Node", "Substation Node"))
+ggsave("./plots/initPower.jpg")
+```
+
+```{r}
+#this function assumes antennas are connected to the nearest 3 central offices
+#assumes central offices are connected to 2 nearest
+createTelecomConnections <- function(Antennas, CentralOffices){
+  lat <- NULL
+  long <- NULL
+  segment <- NULL
+  name <- NULL
+  segmentCount <- 1
+  isCentralOffice <- NULL
+  for(code in CentralOffices$Code){
+    OtherCentralOffices <- CentralOffices[which(CentralOffices$Code!=code),]
+    CentralOffice <- CentralOffices[which(CentralOffices$Code==code),]
+    dist <- NULL
+    greatestDist <- NULL
+    index <- NULL
+    for(i in 1:length(OtherCentralOffices$Longitude)){
+      dist <- (OtherCentralOffices$Latitude[i] - CentralOffice$Latitude[1])^2 + (OtherCentralOffices$Longitude[i] - CentralOffice$Longitude[1])^2
+      if(is.null(greatestDist)||greatestDist<dist){
+        greatestDist <- dist
+        index <- i
+      }
+    }
+    lat <- c(lat,CentralOffice$Latitude[1], OtherCentralOffices$Latitude[index])
+    long <- c(long,CentralOffice$Longitude[1], OtherCentralOffices$Longitude[index])
+    segment <- c(segment,segmentCount, segmentCount)
+    segmentCount <- segmentCount + 1
+    name<- c(name, paste(CentralOffice$Code[1], CentralOffice$Company[1]), paste(OtherCentralOffices$Code[index], OtherCentralOffices$Company[index]))
+    isCentralOffice <- c(isCentralOffice,TRUE, TRUE)
+    OtherCentralOffices <- OtherCentralOffices[-index,]
+    dist <- NULL
+    greatestDist <- NULL
+    index <- NULL
+    for(i in 1:length(OtherCentralOffices$Longitude)){
+      dist <- (OtherCentralOffices$Latitude[i] - CentralOffice$Latitude[1])^2 + (OtherCentralOffices$Longitude[i] - CentralOffice$Longitude[1])^2
+      
+      if(is.null(greatestDist)||greatestDist<dist){
+        greatestDist <- dist
+        index <- i
+      }
+    }
+    lat <- c(lat,CentralOffice$Latitude[1], OtherCentralOffices$Latitude[index])
+    long <- c(long,CentralOffice$Longitude[1], OtherCentralOffices$Longitude[index])
+    segment <- c(segment,segmentCount, segmentCount)
+    segmentCount <- segmentCount + 1
+    name<- c(name, paste(CentralOffice$Code[1], CentralOffice$Company[1]), paste(OtherCentralOffices$Code[index], OtherCentralOffices$Company[index]))
+    isCentralOffice <- c(isCentralOffice,TRUE, TRUE)
+  }
+  #Connect Antennas to 3 nearest central offices
+  for(k in 1:length(Antennas$Latitude)){
+    TempCentralOffices <- CentralOffices
+    Antenna <- Antennas[k,]
+    dist <- NULL
+    greatestDist <- NULL
+    index <- NULL
+    for(i in 1:length(TempCentralOffices$Longitude)){
+      dist <- (TempCentralOffices$Latitude[i] - Antenna$Latitude[1])^2 + (TempCentralOffices$Longitude[i] - Antenna$Longitude[1])^2
+      if(is.null(greatestDist)||greatestDist<dist){
+        greatestDist <- dist
+        index <- i
+      }
+    }
+    lat <- c(lat,TempCentralOffices$Latitude[index], Antenna$Latitude[1])
+    long <- c(long,TempCentralOffices$Longitude[index], Antenna$Longitude[1])
+    segment <- c(segment,segmentCount, segmentCount)
+    segmentCount <- segmentCount + 1
+    name<- c(name, paste(TempCentralOffices$Code[index], TempCentralOffices$Company[index]), paste(Antenna$ID[1], Antenna$Company[1]))
+    isCentralOffice <- c(isCentralOffice,TRUE, FALSE)
+    TempCentralOffices <- TempCentralOffices[-index,]
+    dist <- NULL
+    greatestDist <- NULL
+    index <- NULL
+    for(i in 1:length(TempCentralOffices$Longitude)){
+      dist <- (TempCentralOffices$Latitude[i] - Antenna$Latitude[1])^2 + (TempCentralOffices$Longitude[i] - Antenna$Longitude[1])^2
+      if(is.null(greatestDist)||greatestDist<dist){
+        greatestDist <- dist
+        index <- i
+      }
+    }
+    lat <- c(lat,TempCentralOffices$Latitude[index], Antenna$Latitude[1])
+    long <- c(long,TempCentralOffices$Longitude[index], Antenna$Longitude[1])
+    segment <- c(segment,segmentCount, segmentCount)
+    segmentCount <- segmentCount + 1
+    name<- c(name, paste(TempCentralOffices$Code[index], TempCentralOffices$Company[index]), paste(Antenna$ID[1], Antenna$Company[1]))
+    isCentralOffice <- c(isCentralOffice,TRUE, FALSE)
+    TempCentralOffices <- TempCentralOffices[-index,]
+    dist <- NULL
+    greatestDist <- NULL
+    index <- NULL
+    for(i in 1:length(TempCentralOffices$Longitude)){
+      dist <- (TempCentralOffices$Latitude[i] - Antenna$Latitude[1])^2 + (TempCentralOffices$Longitude[i] - Antenna$Longitude[1])^2
+      if(is.null(greatestDist)||greatestDist<dist){
+        greatestDist <- dist
+        index <- i
+      }
+    }
+    lat <- c(lat,TempCentralOffices$Latitude[index], Antenna$Latitude[1])
+    long <- c(long,TempCentralOffices$Longitude[index], Antenna$Longitude[1])
+    segment <- c(segment,segmentCount, segmentCount)
+    segmentCount <- segmentCount + 1
+    name<- c(name, paste(TempCentralOffices$Code[index], TempCentralOffices$Company[index]), paste(Antenna$ID[1], Antenna$Company[1]))
+    isCentralOffice <- c(isCentralOffice,TRUE, FALSE)
+  }
+  
+  return(data.frame(name, lat, long, segment, isCentralOffice))
+}
+telecomSystem <- createTelecomConnections(Antennas, CentralOffices)
+```
+
+```{r}
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color="1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color="2")) + geom_path(data = telecomSystem, aes(x = long, y = lat, group = segment, color = "3"), size = 0.5) + geom_point(data = telecomSystem[which(telecomSystem$isCentralOffice),], aes(x = long, y = lat, group = segment, color = "4"), size = 0.5) + geom_point(data = telecomSystem[which(telecomSystem$isCentralOffice==FALSE),], aes(x = long, y = lat, group = segment, color = "5"), size = 0.5) + xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley All Nodes") + scale_color_manual(values=c("black","grey", alpha("green", 0.15), "orange","red"), breaks=c("1","2", "3", "4", "5"), name="Legend", labels=c("Actual Lehigh County Roads", "Actual Northampton County", "Cell Line","Central Office Node", "Antenna Node"))
+ggsave("./plots/initTelecom.jpg")
+```
+
+```{r}
+connectToRoads <- function(powerSystem, telecomSystem, finishedPoints){
+  powerObjects <- powerSystem[which(powerSystem$name %in% unique(powerSystem$name)),]
+  telecomObjects <- telecomSystem[which(telecomSystem$name %in% unique(telecomSystem$name)),]
+  transportObjects <- unique(finishedPoints[,c("lat","long","IntName","bridgeName")])
+  transportObjects <- transportObjects[which(is.na(transportObjects$bridge)),]
+  
+  segment <- NULL
+  lat <- NULL
+  long <- NULL
+  name <- NULL
+  segCount <- max(finishedPoints$segment) + 1
+  for(k in 1:length(powerObjects$lat)){
+    dist <- NULL
+    prevDist <- NULL
+    indexOfClosest <- NULL
+    object <- powerObjects[k,]
+    for(i in 1:length(transportObjects$lat)){
+      dist <- (object$lat[1]-transportObjects$lat[i])^2 + (object$long[1]-transportObjects$long[i])^2
+      if(is.null(prevDist)||dist<prevDist){
+        prevDist <- dist
+        indexOfClosest <- i
+      }
+    }
+    
+    name <- c(name,rep_len(paste("Road to",object$name[1]), length.out = 2))
+    segment <- c(segment, rep.int(x = segCount, times = 2))
+    segCount <- segCount + 1
+    lat <- c(lat, object$lat[1], transportObjects$lat[indexOfClosest])
+    long <- c(long, object$long[1], transportObjects$long[indexOfClosest])
+  }
+  for(k in 1:length(telecomObjects$lat)){
+    dist <- NULL
+    prevDist <- NULL
+    indexOfClosest <- NULL
+    object <- telecomObjects[k,]
+    for(i in 1:length(transportObjects$lat)){
+      dist <- (object$lat[1]-transportObjects$lat[i])^2 + (object$long[1]-transportObjects$long[i])^2
+      if(is.null(prevDist)||dist<prevDist){
+        prevDist <- dist
+        indexOfClosest <- i
+      }
+    }
+    
+    name <- c(name,rep_len(paste("Road to",object$name[1]), length.out = 2))
+    segment <- c(segment, rep.int(x = segCount, times = 2))
+    segCount <- segCount + 1
+    lat <- c(lat, object$lat[1], transportObjects$lat[indexOfClosest])
+    long <- c(long, object$long[1], transportObjects$long[indexOfClosest])
+  }
+  return(data.frame(IntName = name, lat, long, segment, order = rep_len(NA, length.out = length(name)), fakeInt = rep_len(TRUE, length.out = length(name)), bridgeName = rep_len(NA, length.out = length(name))))
+}
+
+transportConnections <- connectToRoads(powerSystem, telecomSystem, finishedPoints)
+
+```
+
+```{r}
+
+connectToPower <- function(telecomSystem, powerSystem){
+  powerObjects <- powerSystem[which(!powerSystem$isPlant),]
+  telecomObjects <- telecomSystem # now connecting to all telecom [which(telecomSystem$isCentralOffice),]
+  
+  segment <- NULL
+  lat <- NULL
+  long <- NULL
+  name <- NULL
+  segCount <- max(powerSystem$segment) + 1
+  for(k in 1:length(telecomObjects$lat)){
+    dist <- NULL
+    prevDist <- NULL
+    indexOfClosest <- NULL
+    object <- telecomObjects[k,]
+    for(i in 1:length(powerObjects$lat)){
+      dist <- (object$lat[1]-powerObjects$lat[i])^2 + (object$long[1]-powerObjects$long[i])^2
+      if(is.null(prevDist)||dist<prevDist){
+        prevDist <- dist
+        indexOfClosest <- i
+      }
+    }
+    
+    name <- c(name,rep_len(paste("Power to",object$name[1]), length.out = 2))
+    segment <- c(segment, rep.int(x = segCount, times = 2))
+    segCount <- segCount + 1
+    lat <- c(lat, object$lat[1], powerObjects$lat[indexOfClosest])
+    long <- c(long, object$long[1], powerObjects$long[indexOfClosest])
+  }
+  return(data.frame(name, lat, long, segment))
+}
+
+powerConnections <- connectToPower(telecomSystem, powerSystem)
+```
+
+```{r}
+ggplot() + geom_path(data = lehighCounty, aes(x = long, y = lat, group = group, color="1")) + geom_path(data = northamptonCounty, aes(x = long, y = lat, group = group, color="2")) + geom_path(data = finishedPoints, aes(x = long, y = lat, color = "3", group = segment), size = 2) + geom_path(data = transportConnections, aes(x = long, y = lat, color = "4", group = segment), size = 2) + geom_path(data = powerSystem, aes(x = long, y = lat, group = segment, color = "5"), size = 0.5) + geom_path(data = powerConnections, aes(x = long, y = lat, group = segment, color = "6"), size = 0.5) +geom_path(data = telecomSystem, aes(x = long, y = lat, group = segment, color = "7"), size = 0.5) + xlab("Longitude") + ylab("Latitude") + ggtitle("Lehigh Valley All Nodes Connected") + scale_color_manual(values=c("black","gray", "red", "green", "blue", "yellow", alpha("orange", 0.1)), breaks=c("1","2", "3", "4", "5", "6", "7"), name="Legend", labels=c("Actual Lehigh County Roads", "Actual Northampton County Roads", "Initial Road Segments", "Added Road Segments", "Initial Connected Power System", "Added Power System Connections", "Telecom Connections"))
+ggsave("./plots/allNodesConnected.jpg")
+
+```
+
+```{r}
+write.csv(file = "./lehighNodes/transportationNodes.csv", x = rbind(finishedPoints,transportConnections))
+powerConnections$isPlant <- rep_len(NA, length.out = length(powerConnections$name))
+write.csv(file = "./lehighNodes/powerNodes.csv", x = rbind(powerSystem,powerConnections))
+write.csv(file = "./lehighNodes/telecomNodes.csv", x= telecomSystem)
+```

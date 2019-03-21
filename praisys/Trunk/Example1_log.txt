@@ -1,0 +1,37 @@
+Analysis started on 03May16_12:02
+Iteration 1 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 1 yielded delta = 0.052157
+Iteration 2 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 2 yielded delta = 0.0013312
+Iteration 3 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 3 yielded delta = 4.2953e-05
+Iteration 4 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 4 yielded delta = 2.4569e-06
+Iteration 5 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 5 yielded delta = 1.4973e-07
+Iteration 6 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 6 yielded delta = 9.5791e-09
+Iteration 7 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 7 yielded delta = 6.3742e-10
+Iteration 8 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 8 yielded delta = 4.384e-11
+Iteration 9 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 9 yielded delta = 3.1021e-12
+Iteration 10 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 10 yielded delta = 2.2501e-13
+Iteration 11 started; 0 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 11 yielded delta = 1.6681e-14
+Iteration 12 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 12 yielded delta = 1.2604e-15
+Iteration 13 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 13 yielded delta = 9.6833e-17
+Iteration 14 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 14 yielded delta = 7.5482e-18
+Iteration 15 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 15 yielded delta = 5.9583e-19
+Iteration 16 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 16 yielded delta = 4.7545e-20
+Iteration 17 started; 1 sec elapsed; max iterations = 9000; max time = 10 sec.
+Iteration 17 yielded delta = 3.8294e-21
+Convergence met
+Analysis complteted on 03May16_12:02

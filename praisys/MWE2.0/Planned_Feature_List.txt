@@ -1,0 +1,56 @@
+Planned Feature List for MWE 2.0
+1. Standardized User Input function
+    This version simulator are reading the user input file (.xlsx and .csv) files using a reading input function. 
+However, this function is only applicable for the current input file format. In the future, the standardized input
+file format should be determined so that we do not need to change the input reading function for every input file
+version.
+2. Library
+    a. Policy Library
+        Construct a library and the corresponding functions to get the policy base on the user input and generate    
+        the priority ranking base on the output of this function. So that the priority scheduler can use the result to 
+        generate schedule.
+
+    b. Structure Library
+        Construct a library and the corresponding functions to get the mean and standard deviation recovery for each 
+        objects base on the their structure information in the library.
+
+    c. Fragility Library
+        Construct a library and the corresponding functions to get the probability of the damage state of a object
+        in different hazards. Base on the probability we can know the exact damage state of each object.
+
+    d. Failure Library
+        Construct a library and the corresponding functions to get the information about the cascading failure for
+        each system.
+
+    e. Resilience Library
+        Construct a library and the corresponding functions to calculate resilience for each system.
+
+3. Cascading Failure
+    This version simulator only do the cascading stop on the objects in each system. In the future, the simulator 
+should be able to simulate the cascading failure in or between each system.
+
+4. Multi-phase Optimize schedule algorithm
+    This version simulator schedule each system on a uniform time step which is not very practical in the real world.
+The schedule that can schedule each system on a non-uniform time step for each phase for each system base on the user
+input will be the best choice for the simulator.
+
+5. New Reschedule algorithm 
+    This version simulator currently reschedule three system together. The algorithm is not only using the 
+interdependence between the objects in their own system but also using the interdependence cross system. The new
+reschedule algorithm should using the cross system interdependence as a non-critical factor in the optimization.
+
+6. Object Level Functionality Output
+    This version simulator only generated the functionality output files at system level. Since the functionality 
+at object level will also be analyzed in the future. Save the functionality output files at the object level will
+be also required.
+
+7. Better Parallel Profiler
+    This version simulator can not save the profiler for parallel for loop as a file, instead it need to open 
+the MATLAB as display all information there. This will be a problem when simulator is running on the server. The 
+better parallel profiler will be need if we want to save our profiler as a file.
+
+8. Multi Resolution Simulation
+    This version simulator is achieve at the highest resolution in the simulation process which means run every 
+objects in the most detail way. In the future, the simulator should be able to run at multilevel resolution, for 
+example, we can only run run simulation on the bridges but not theirs sub-components.
+

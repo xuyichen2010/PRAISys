@@ -1,0 +1,59 @@
+# Data input
+Data RoadNode.xlsx PowerPlants.xlsx Substations.xlsx Power_Systems_Connectivity.xlsx Antennas.csv CentralOffices.csv CommunicationTowers.csv Bridges.xlsx TrafficLights.xlsx RoadLink.xlsx bridgeTasks.xlsx Neighborhood.csv  subBridge_Bridge1.csv
+# Number of Sample and Run
+Nsamples 2
+NRun 2
+
+# Map Selection
+Map shakemap.mat
+
+# Active System Selection
+System Power Communication
+
+# Profile Selection
+Profile_Num 0
+
+# Scheduler Model Selection
+Scheduler 1
+ReSchedule 0
+
+# Choose Interdependence Model
+Interdependence 0
+
+# Functionality Selection
+Functionality_Power 2
+Functionality_Comm 1
+Functionality_Trans 1
+
+# Choose time_horizon
+Time 300
+
+# Maximum number for each system can be repair at same time
+Power_Resource 15 20 30 30
+Comm_Resource 15 20 30 30
+Trans_Resource 35 20 30 30
+
+# Max Priority
+Power_Priority 14
+Comm_Priority 3
+Trans_Priority 224
+
+# Turn on Battery
+Prob_Magic_Battery 0.7
+
+# Sperate Scheduling
+Seperate_Scheduling 1
+
+
+# 1 for voltage, 2 for population
+priority_power_num 1
+
+# 1 for length, 2 for traffic volume 
+priority_transportation_num 1
+
+# 1 for population
+priority_communication_num 1
+
+
+
+

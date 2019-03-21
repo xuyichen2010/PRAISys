@@ -1,0 +1,11 @@
+Bridge component,Amount of this component ,"Material type (such as hydrated cement concrete, steel, reinforced concrete, etc.)","Dimension design type (such as circular cylinder, rectangular, trapezoid, etc.)",Dimension parameter-1 (height) [unit: meter],"Dimension parameter-2 ?(if dimension design type = 1, then diameter; if dimension design type = 2, then length) [unit: meter]","Dimension parameter-3 (if dimension design type = 1, then empty; if dimension design type = 2, then width) [unit: meter]","Dimension parameter-4 ?(if dimension design type = 3 or other number, then some other parameter) [unit: meter]"
+Left abutment foundation,3,hydrated cement concrete,circular cylinder,,,,
+Right abutment foundation,3,hydrated cement concrete,circular cylinder,,,,
+Left abutment ,1,hydrated cement concrete,trapezoid,,,,
+Right abutment ,1,hydrated cement concrete,trapezoid,,,,
+Rocker bearing ,3,steel,nan,,,,
+Fixed bearing,3,steel,nan,,,,
+Deck ,3,reinforced concrete,,,,,
+Approach slab ,2,reinforced concrete,,,,,
+(If No. of span >1) Column foundation ,2,reinforced concrete,,,,,
+(If No. of span >1) Column,2,reinforced concrete,,,,,
